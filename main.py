@@ -1,39 +1,33 @@
-from proj2 import DataHandler, KNNClassifier, Evaluation, greedy_forward_selection, greedy_backward_elimination
+from proj2 import DataHandler, NNClassifier, Validator, forward_selection, backward_elimination
 
 def main():
     data_handler = DataHandler()
-    knn = KNNClassifier()
-    evaluation = Evaluation(knn)
+    classifier = NNClassifier()
+    validator = Validator(classifier)
 
-    # Test on small dataset with stub evaluation
-    print("\nTesting on CS170_Spring_2024_Small_data__81.txt with stub evaluation function:")
-    selected_attributes, accuracy = greedy_forward_selection(data_handler, knn, evaluation, 'CS170_Spring_2024_Small_data__81.txt', use_stub=True)
-    print(f"Forward Selection - Selected attributes: {selected_attributes}, Stub accuracy: {accuracy:.3f}")
-
-    selected_attributes, accuracy = greedy_backward_elimination(data_handler, knn, evaluation, 'CS170_Spring_2024_Small_data__81.txt', use_stub=True)
-    print(f"Backward Elimination - Selected attributes: {selected_attributes}, Stub accuracy: {accuracy:.3f}")
-
-    # Test on small dataset with actual evaluation
-    print("\nTesting on CS170_Spring_2024_Small_data__81.txt with actual evaluation function:")
-    selected_attributes, accuracy = greedy_forward_selection(data_handler, knn, evaluation, 'CS170_Spring_2024_Small_data__81.txt')
-    print(f"Forward Selection - Selected attributes: {selected_attributes}, Actual accuracy: {accuracy:.3f}")
-
-    selected_attributes, accuracy = greedy_backward_elimination(data_handler, knn, evaluation, 'CS170_Spring_2024_Small_data__81.txt')
-    print(f"Backward Elimination - Selected attributes: {selected_attributes}, Actual accuracy: {accuracy:.3f}")
+    # Test on small dataset
+    print("\nTesting on CS170_Spring_2024_Small_data__81.txt")
+    features, labels = data_handler.load_data("CS170_Spring_2024_Small_data__81.txt")
+    accuracy = validator.leave_one_out_validation(features, labels, [0, 1, 2])  # Example features
+    print(f"Obtained accuracy: {accuracy:.3f}")
 
     # Test on large dataset with actual evaluation
     print("\nTesting on CS170_Spring_2024_Large_data__81.txt with features {1, 15, 27}")
-    attributes, targets = data_handler.load_data('CS170_Spring_2024_Large_data__81.txt')
-    accuracy = evaluation.leave_one_out(attributes, targets, [0, 14, 26])  # Indexing from 0, so 1 -> 0, 15 -> 14, 27 -> 26
+    features, labels = data_handler.load_data("CS170_Spring_2024_Large_data__81.txt")
+    accuracy = validator.leave_one_out_validation(features, labels, [0, 14, 26])  # Indexing from 0, so 1 -> 0, 15 -> 14, 27 -> 26
     print(f"Expected accuracy: ~0.949, Obtained accuracy: {accuracy:.3f}")
 
-    # Large dataset feature selection
-    print("\nUsing actual evaluation function on CS170_Spring_2024_Large_data__81.txt:")
-    selected_attributes, accuracy = greedy_forward_selection(data_handler, knn, evaluation, 'CS170_Spring_2024_Large_data__81.txt')
-    print(f"Forward Selection - Selected attributes: {selected_attributes}, Actual accuracy: {accuracy:.3f}")
+    # Feature selection
+    print("Type the number of the algorithm you want to run.")
+    print("\n1. Forward Selection\n2. Backward Elimination")
+    choice = int(input())
 
-    selected_attributes, accuracy = greedy_backward_elimination(data_handler, knn, evaluation, 'CS170_Spring_2024_Large_data__81.txt')
-    print(f"Backward Elimination - Selected attributes: {selected_attributes}, Actual accuracy: {accuracy:.3f}")
+    if choice == 1:
+        forward_selection(data_handler, classifier, validator, "CS170_Spring_2024_Large_data__81.txt", max_features=5)
+    elif choice == 2:
+        backward_elimination(data_handler, classifier, validator, "CS170_Spring_2024_Large_data__81.txt", min_features=5)
+    else:
+        print("Invalid choice. Please choose either 1 or 2.")
 
 if __name__ == "__main__":
     main()
