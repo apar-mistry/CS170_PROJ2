@@ -18,19 +18,22 @@ class Evaluation:
     def __init__(self, knn):
         self.knn = knn
 
+    def leave_one_out_single(self, i, attributes, targets, selected_attributes):
+        train_attributes = np.delete(attributes, i, axis=0)[:, selected_attributes]
+        train_targets = np.delete(targets, i)
+        test_instance = attributes[i, selected_attributes]
+        prediction = self.knn.predict(train_attributes, train_targets, test_instance)
+        return prediction == targets[i]
+
     def leave_one_out(self, attributes, targets, selected_attributes):
         selected_attributes = np.array(selected_attributes)
         n_samples = attributes.shape[0]
-        correct_predictions = 0
         
-        for i in range(n_samples):
-            train_attributes = np.delete(attributes, i, axis=0)[:, selected_attributes]
-            train_targets = np.delete(targets, i)
-            test_instance = attributes[i, selected_attributes]
-            prediction = self.knn.predict(train_attributes, train_targets, test_instance)
-            if prediction == targets[i]:
-                correct_predictions += 1
-
+        correct_predictions = sum(
+            self.leave_one_out_single(i, attributes, targets, selected_attributes)
+            for i in range(n_samples)
+        )
+        
         accuracy = correct_predictions / n_samples
         return accuracy
 
