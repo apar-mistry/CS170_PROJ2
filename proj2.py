@@ -1,88 +1,100 @@
+import pandas as pd
 import numpy as np
-import random
+from concurrent.futures import ProcessPoolExecutor
 
 class DataHandler:
     def load_data(self, filename):
-        data = np.loadtxt(filename)
-        attributes = data[:, 1:]
-        targets = data[:, 0]
-        return attributes, targets
+        data = pd.read_csv(filename, delim_whitespace=True, header=None)
+        features = data.iloc[:, 1:]
+        labels = data.iloc[:, 0]
+        return features, labels
 
-class KNNClassifier:
-    def predict(self, train_data, train_targets, instance):
-        distances = np.linalg.norm(train_data - instance, axis=1)
+class NNClassifier:
+    def train(self, training_data, training_labels):
+        self.training_data = training_data
+        self.training_labels = training_labels
+
+    def predict(self, test_instance):
+        distances = np.linalg.norm(self.training_data.values - test_instance.values, axis=1)
         nearest_index = np.argmin(distances)
-        return train_targets[nearest_index]
+        return self.training_labels.iloc[nearest_index]
 
-class Evaluation:
-    def __init__(self, knn):
-        self.knn = knn
+class Validator:
+    def __init__(self, classifier):
+        self.classifier = classifier
 
-    def leave_one_out_single(self, i, attributes, targets, selected_attributes):
-        train_attributes = np.delete(attributes, i, axis=0)[:, selected_attributes]
-        train_targets = np.delete(targets, i)
-        test_instance = attributes[i, selected_attributes]
-        prediction = self.knn.predict(train_attributes, train_targets, test_instance)
-        return prediction == targets[i]
+    def leave_one_out_single(self, i, data, labels, feature_subset):
+        training_data = data.drop(index=i)
+        training_labels = labels.drop(index=i)
 
-    def leave_one_out(self, attributes, targets, selected_attributes):
-        selected_attributes = np.array(selected_attributes)
-        n_samples = attributes.shape[0]
+        self.classifier.train(training_data.iloc[:, feature_subset], training_labels)
+        prediction = self.classifier.predict(data.iloc[i, feature_subset])
         
-        correct_predictions = sum(
-            self.leave_one_out_single(i, attributes, targets, selected_attributes)
-            for i in range(n_samples)
-        )
+        return prediction == labels.iloc[i]
+
+    def leave_one_out_validation(self, data, labels, feature_subset):
+        correct_predictions = 0
+        total_instances = len(data)
+
+        with ProcessPoolExecutor() as executor:
+            results = executor.map(self.leave_one_out_single, range(total_instances), [data]*total_instances, [labels]*total_instances, [feature_subset]*total_instances)
         
-        accuracy = correct_predictions / n_samples
+        correct_predictions = sum(results)
+        accuracy = correct_predictions / total_instances
         return accuracy
 
-    def stub_evaluation(self, attributes, targets, selected_attributes):
-        return random.uniform(0, 1)
+def forward_selection(data_handler, classifier, validator, filename, max_features=None):
+    features, labels = data_handler.load_data(filename)
+    n_features = features.shape[1]
+    selected_features = []
+    best_accuracy = 0
 
-def greedy_forward_selection(data_handler, knn, evaluation, filename, use_stub=False):
-    attributes, targets = data_handler.load_data(filename)
-    n_attributes = attributes.shape[1]
-    selected_attributes = []
-    highest_accuracy = 0
-    
-    eval_function = evaluation.stub_evaluation if use_stub else evaluation.leave_one_out
+    print("\nBeginning search.\n")
 
-    for _ in range(n_attributes):
-        best_attribute = None
-        local_best_accuracy = 0
-        for attribute in range(n_attributes):
-            if attribute not in selected_attributes:
-                accuracy = eval_function(attributes, targets, selected_attributes + [attribute])
-                if accuracy > local_best_accuracy:
-                    local_best_accuracy = accuracy
-                    best_attribute = attribute
-        if best_attribute is not None:
-            selected_attributes.append(best_attribute)
-            highest_accuracy = local_best_accuracy
-    
-    return selected_attributes, highest_accuracy
+    while max_features is None or len(selected_features) < max_features:
+        best_local_accuracy = 0
+        best_feature = None
 
-def greedy_backward_elimination(data_handler, knn, evaluation, filename, use_stub=False):
-    attributes, targets = data_handler.load_data(filename)
-    n_attributes = attributes.shape[1]
-    selected_attributes = list(range(n_attributes))
-    highest_accuracy = evaluation.leave_one_out(attributes, targets, selected_attributes)
-    
-    eval_function = evaluation.stub_evaluation if use_stub else evaluation.leave_one_out
+        for feature in range(n_features):
+            if feature not in selected_features:
+                accuracy = validator.leave_one_out_validation(features, labels, selected_features + [feature])
+                print(f"Using feature(s) {selected_features + [feature]} accuracy is {accuracy:.4f}")
+                if accuracy > best_local_accuracy:
+                    best_local_accuracy = accuracy
+                    best_feature = feature
 
-    while len(selected_attributes) > 1:
-        worst_attribute = None
-        local_best_accuracy = 0
-        for attribute in selected_attributes:
-            temp_attributes = selected_attributes.copy()
-            temp_attributes.remove(attribute)
-            accuracy = eval_function(attributes, targets, temp_attributes)
-            if accuracy > local_best_accuracy:
-                local_best_accuracy = accuracy
-                worst_attribute = attribute
-        if worst_attribute is not None:
-            selected_attributes.remove(worst_attribute)
-            highest_accuracy = local_best_accuracy
-    
-    return selected_attributes, highest_accuracy
+        if best_feature is not None:
+            selected_features.append(best_feature)
+            best_accuracy = best_local_accuracy
+            print(f"\nFeature set {selected_features} was best, accuracy is {best_accuracy:.4f}")
+
+    print(f"\nFinished search!! The best feature subset is {selected_features}, which has an accuracy of {best_accuracy:.4f}\n")
+
+def backward_elimination(data_handler, classifier, validator, filename, min_features=1):
+    features, labels = data_handler.load_data(filename)
+    n_features = features.shape[1]
+    selected_features = list(range(n_features))
+    best_accuracy = validator.leave_one_out_validation(features, labels, selected_features)
+
+    print("\nBeginning search.\n")
+
+    while len(selected_features) > min_features:
+        worst_feature = None
+        best_local_accuracy = 0
+
+        for feature in selected_features:
+            temp_features = selected_features.copy()
+            temp_features.remove(feature)
+            accuracy = validator.leave_one_out_validation(features, labels, temp_features)
+            print(f"Using feature(s) {temp_features} accuracy is {accuracy:.4f}")
+            if accuracy > best_local_accuracy:
+                best_local_accuracy = accuracy
+                worst_feature = feature
+
+        if worst_feature is not None:
+            selected_features.remove(worst_feature)
+            best_accuracy = best_local_accuracy
+            print(f"\nFeature set {selected_features} was best, accuracy is {best_accuracy:.4f}")
+
+    print(f"\nFinished search!! The best feature subset is {selected_features}, which has an accuracy of {best_accuracy:.4f}\n")
+
