@@ -1,4 +1,4 @@
-from gpt import DataHandler, KNNClassifier, Evaluation, greedy_forward_selection, greedy_backward_elimination
+from proj2 import DataHandler, KNNClassifier, Evaluation, greedy_forward_selection, greedy_backward_elimination
 
 def main():
     data_handler = DataHandler()
