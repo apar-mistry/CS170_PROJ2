@@ -43,7 +43,7 @@ class Validator:
 def evaluation_function(feature_subset):
     # Dummy implementation of evaluation function
     # Replace this with the actual logic or function call as needed
-    return random.uniform(0, 1) * 100  # Random accuracy for placeholder
+    return validator.leave_one_out_validation(features, labels, feature_set)
 
 def forward_selection(total_features):
     current_features = []
